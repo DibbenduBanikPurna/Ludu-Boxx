@@ -271,7 +271,27 @@ export function getWinner(state) {
 }
 
 export function resolveTurnAfterMove(state, rolledValue, movedTokenId) {
-  if (rolledValue === 6) {
+  const currentColor = getCurrentPlayer(state)
+  const movedToken = state.players[currentColor]?.tokens.find(
+    (token) => token.id === movedTokenId,
+  )
+  const capturedCount = state.lastMove?.captured?.length ?? 0
+  const reachedFinal = movedToken?.steps === FINAL_STEP
+  const hasBonusTurn = rolledValue === 6 || capturedCount > 0 || reachedFinal
+
+  if (hasBonusTurn) {
+    let bonusReason = 'extra turn'
+
+    if (rolledValue === 6) {
+      bonusReason = 'rolled 6: extra turn'
+    } else if (capturedCount > 0 && reachedFinal) {
+      bonusReason = 'captured and reached home: extra turn'
+    } else if (capturedCount > 0) {
+      bonusReason = 'capture bonus: extra turn'
+    } else if (reachedFinal) {
+      bonusReason = 'home bonus: extra turn'
+    }
+
     return {
       ...state,
       diceValue: null,
@@ -279,7 +299,7 @@ export function resolveTurnAfterMove(state, rolledValue, movedTokenId) {
       highlightedTokenIds: [],
       mustMoveToken: false,
       status: movedTokenId
-        ? `${state.players[getCurrentPlayer(state)].name} rolled 6: extra turn`
+        ? `${state.players[currentColor].name} ${bonusReason}`
         : state.status,
     }
   }

@@ -74,11 +74,24 @@ function Board({
     [0.22, 0],
   ]
 
+  const laneStackOffsets = [
+    [0, 0],
+    [-0.05, -0.05],
+    [0.05, -0.05],
+    [-0.05, 0.05],
+    [0.05, 0.05],
+    [0, -0.06],
+    [0, 0.06],
+    [-0.06, 0],
+    [0.06, 0],
+  ]
+
   const tokenEntriesWithStacks = tokenEntries.map((entry) => {
     const key = `${entry.position.x}|${entry.position.y}`
     const stack = groupedTokens.get(key)
     const stackIndex = stack.findIndex((item) => item.token.id === entry.token.id)
-    const [offsetX, offsetY] = stackOffsets[stackIndex] ?? [0, 0]
+    const offsets = entry.position.place === 'lane' ? laneStackOffsets : stackOffsets
+    const [offsetX, offsetY] = offsets[stackIndex] ?? [0, 0]
 
     return {
       ...entry,
@@ -175,8 +188,8 @@ function Board({
               key={entry.token.id}
               className={`token-slot ${entry.stackSize > 1 ? 'is-stacked' : ''}`}
               style={{
-                left: `calc((${entry.position.x} + ${entry.offsetX}) * var(--cell))`,
-                top: `calc((${entry.position.y} + ${entry.offsetY}) * var(--cell))`,
+                left: `calc((${entry.position.x} + 0.5 + ${entry.offsetX}) * var(--cell))`,
+                top: `calc((${entry.position.y} + 0.5 + ${entry.offsetY}) * var(--cell))`,
               }}
             >
               <Token
