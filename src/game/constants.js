@@ -24,6 +24,7 @@ export const PLAYER_META = {
 
 export const GAME_MODES = {
   TWO_PLAYERS: '2p',
+  THREE_PLAYERS: '3p',
   FOUR_PLAYERS: '4p',
   TEAM: 'team',
   BOT: 'bot',

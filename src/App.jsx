@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react'
+import { useEffect, useMemo, useReducer, useRef } from 'react'
 import './App.css'
 import Board from './components/Board'
 import Dice from './components/Dice'
@@ -16,6 +16,98 @@ import {
 } from './game/logic'
 
 const DEFAULT_MODE = GAME_MODES.BOT
+
+function createSoundEngine() {
+  let audioContext = null
+
+  const getCtx = () => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+
+    if (!audioContext) {
+      const AudioContextCtor = window.AudioContext || window.webkitAudioContext
+      if (!AudioContextCtor) {
+        return null
+      }
+      audioContext = new AudioContextCtor()
+    }
+
+    return audioContext
+  }
+
+  const pulse = (ctx, frequency, duration, startAt, type = 'sine', gain = 0.04) => {
+    const osc = ctx.createOscillator()
+    const amp = ctx.createGain()
+
+    osc.type = type
+    osc.frequency.setValueAtTime(frequency, startAt)
+
+    amp.gain.setValueAtTime(0.0001, startAt)
+    amp.gain.exponentialRampToValueAtTime(gain, startAt + 0.012)
+    amp.gain.exponentialRampToValueAtTime(0.0001, startAt + duration)
+
+    osc.connect(amp)
+    amp.connect(ctx.destination)
+    osc.start(startAt)
+    osc.stop(startAt + duration + 0.015)
+  }
+
+  const playDiceClick = () => {
+    const ctx = getCtx()
+    if (!ctx) {
+      return
+    }
+
+    const startAt = ctx.currentTime + 0.001
+    pulse(ctx, 520, 0.07, startAt, 'triangle', 0.04)
+    pulse(ctx, 690, 0.06, startAt + 0.012, 'triangle', 0.03)
+  }
+
+  const playTokenMove = () => {
+    const ctx = getCtx()
+    if (!ctx) {
+      return
+    }
+
+    const startAt = ctx.currentTime + 0.001
+    pulse(ctx, 230, 0.08, startAt, 'square', 0.038)
+    pulse(ctx, 320, 0.09, startAt + 0.05, 'square', 0.032)
+  }
+
+  const playVictory = () => {
+    const ctx = getCtx()
+    if (!ctx) {
+      return
+    }
+
+    const startAt = ctx.currentTime + 0.001
+    const notes = [392, 494, 587, 784]
+    notes.forEach((note, index) => {
+      pulse(ctx, note, 0.24, startAt + index * 0.11, 'sawtooth', 0.045)
+    })
+  }
+
+  const unlock = async () => {
+    const ctx = getCtx()
+    if (!ctx || ctx.state !== 'suspended') {
+      return
+    }
+
+    try {
+      await ctx.resume()
+    } catch {
+      // Browser can block resume during non-user events; ignore safely.
+    }
+  }
+
+  return {
+    unlock,
+    playDiceClick,
+    playTokenMove,
+    playVictory,
+  }
+}
 
 function gameReducer(state, action) {
   switch (action.type) {
@@ -111,12 +203,15 @@ function App() {
     gameReducer,
     createInitialState(DEFAULT_MODE, BOT_LEVELS.MEDIUM),
   )
+  const soundRef = useRef(createSoundEngine())
+  const prevWinnerKeyRef = useRef(null)
 
   const currentColor = getCurrentPlayer(state)
   const currentPlayer = state.players[currentColor]
   const modeOptions = useMemo(
     () => [
       { value: GAME_MODES.TWO_PLAYERS, label: '2 Players (1 vs 1)' },
+      { value: GAME_MODES.THREE_PLAYERS, label: '3 Players (Solo)' },
       { value: GAME_MODES.FOUR_PLAYERS, label: '4 Players (Solo)' },
       { value: GAME_MODES.TEAM, label: 'Team (2 vs 2)' },
       { value: GAME_MODES.BOT, label: 'Player vs Bot' },
@@ -132,6 +227,9 @@ function App() {
       return
     }
 
+    soundRef.current.unlock()
+    soundRef.current.playDiceClick()
+
     dispatch({ type: 'ROLL_START' })
 
     window.setTimeout(() => {
@@ -144,6 +242,8 @@ function App() {
     if (color !== currentColor || !state.mustMoveToken) {
       return
     }
+
+    soundRef.current.playTokenMove()
 
     dispatch({ type: 'MOVE_TOKEN', color, tokenId })
   }
@@ -186,6 +286,7 @@ function App() {
         )
 
         if (tokenId) {
+          soundRef.current.playTokenMove()
           dispatch({ type: 'MOVE_TOKEN', color: currentColor, tokenId })
         } else {
           dispatch({ type: 'PASS_TURN' })
@@ -197,6 +298,20 @@ function App() {
 
     return undefined
   }, [state, currentColor, currentPlayer])
+
+  useEffect(() => {
+    const winnerKey = state.winner?.key ?? null
+    const previousWinnerKey = prevWinnerKeyRef.current
+
+    if (winnerKey && winnerKey !== previousWinnerKey) {
+      soundRef.current.playVictory()
+    }
+
+    prevWinnerKeyRef.current = winnerKey
+  }, [state.winner])
+
+  const winnerLabel = state.winner ? state.winner.label : ''
+  const diceDisplayValue = state.diceRolling ? '...' : state.diceValue ?? '-'
 
   return (
     <main className="app">
@@ -266,6 +381,38 @@ function App() {
           )}
         />
       </section>
+
+      <section className="turn-hud" aria-live="polite">
+        <div className="turn-hud-player">
+          <span className={`turn-dot turn-${currentColor}`} aria-hidden="true" />
+          <span>
+            Turn: <strong>{currentPlayer?.name}</strong>
+          </span>
+        </div>
+        <div className="turn-hud-status">{state.status}</div>
+        <div className="turn-hud-dice">
+          <span>Dice</span>
+          <strong>{diceDisplayValue}</strong>
+        </div>
+      </section>
+
+      {state.winner && (
+        <section className="winner-overlay" role="status" aria-live="polite">
+          <div className="winner-card">
+            <p className="winner-title">Winner</p>
+            <h2>{winnerLabel}</h2>
+            <p className="winner-subtitle">Congratulations! Match finished.</p>
+            <button type="button" className="btn" onClick={() => dispatch({ type: 'RESTART' })}>
+              Play Again
+            </button>
+          </div>
+          <div className="winner-sparkle-field" aria-hidden="true">
+            {Array.from({ length: 18 }, (_, index) => (
+              <span key={`spark-${index}`} className="winner-sparkle" />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   )
 }

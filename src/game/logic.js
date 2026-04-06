@@ -21,6 +21,8 @@ export function getModePlayers(mode) {
   switch (mode) {
     case GAME_MODES.TWO_PLAYERS:
       return ['red', 'blue']
+    case GAME_MODES.THREE_PLAYERS:
+      return ['red', 'blue', 'green']
     case GAME_MODES.BOT:
       return ['red', 'blue']
     case GAME_MODES.TEAM:

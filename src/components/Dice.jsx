@@ -10,6 +10,7 @@ const PIP_MAP = {
 function Dice({ value, isRolling, onRoll, disabled, variant = 'default', tone = 'red' }) {
   const shownValue = value ?? 1
   const pipIndexes = PIP_MAP[shownValue]
+  const numberLabel = isRolling ? '...' : String(shownValue)
 
   return (
     <div className={`dice-wrap dice-wrap-${variant} tone-${tone}`}>
@@ -18,6 +19,7 @@ function Dice({ value, isRolling, onRoll, disabled, variant = 'default', tone = 
         className={`dice dice-${variant} tone-${tone} ${isRolling ? 'rolling' : ''}`}
         onClick={onRoll}
         disabled={disabled || isRolling}
+        aria-label={isRolling ? 'Dice is rolling' : `Dice value ${shownValue}`}
       >
         {isRolling ? (
           <span className="dice-face dice-face-rolling" aria-hidden="true">
@@ -35,6 +37,7 @@ function Dice({ value, isRolling, onRoll, disabled, variant = 'default', tone = 
             ))}
           </span>
         )}
+        <span className="dice-number" aria-hidden="true">{numberLabel}</span>
       </button>
       <div className="dice-caption">Tap To Roll</div>
     </div>
