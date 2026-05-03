@@ -16,6 +16,7 @@ function Board({
   canInteract,
   diceColor,
   diceSlot,
+  compact = false,
 }) {
   const cornerZones = [
     { color: 'red', gridColumn: '1 / span 6', gridRow: '1 / span 6' },
@@ -119,15 +120,17 @@ function Board({
     <section className="board-shell">
       <div className="board-stage">
         <div className="board-grid">
-          <div
-            className={`board-dice-slot ${diceCellTokenCount > 0 ? 'is-crowded' : ''} ${canInteract ? 'is-passive' : ''}`}
-            style={{
-              gridColumn: diceX + 1,
-              gridRow: diceY + 1,
-            }}
-          >
-            {diceSlot}
-          </div>
+          {diceSlot && (
+            <div
+              className={`board-dice-slot ${diceCellTokenCount > 0 ? 'is-crowded' : ''}`}
+              style={{
+                gridColumn: diceX + 1,
+                gridRow: diceY + 1,
+              }}
+            >
+              {diceSlot}
+            </div>
+          )}
 
           {cornerZones.map((zone) => (
             <div

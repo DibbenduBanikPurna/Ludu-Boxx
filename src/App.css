@@ -166,17 +166,18 @@ select,
   gap: 0.8rem;
   align-items: center;
   width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .board-stage {
-  --cell: clamp(20px, calc((100vw - 1.1rem) / 15), 34px);
+  /* cell scales to fit both width and height without causing page scroll */
+  --cell: min(clamp(16px, calc((100vw - 1.1rem) / 15), 40px), calc((100vh - 2.2rem) / 15));
   position: relative;
   flex: 0 0 auto;
-  width: fit-content;
-  padding: 1rem;
+  width: calc(var(--cell) * 15);
+  height: calc(var(--cell) * 15);
+  padding: 0;
   border-radius: 18px;
   background: linear-gradient(
     180deg,
@@ -194,13 +195,28 @@ select,
   z-index: 8;
 }
 
-.board-dice-slot.is-passive {
-  pointer-events: none;
-}
-
 .board-dice-slot.is-crowded {
   place-items: center;
   padding: 0;
+}
+
+.board-dice-slot .dice-wrap-board {
+  width: max(calc(var(--cell) * 1.0), 40px);
+  height: max(calc(var(--cell) * 1.0), 40px);
+  display: grid;
+  place-items: center;
+}
+
+.board-dice-slot .dice {
+  width: max(calc(var(--cell) * 0.86), 36px);
+  height: max(calc(var(--cell) * 0.86), 36px);
+  border-radius: 10px;
+  pointer-events: auto;
+}
+
+/* keep the caption out of the cramped board slot */
+.board-dice-slot .dice-caption {
+  display: none;
 }
 
 .board-grid {
@@ -215,6 +231,27 @@ select,
   border: 2px solid #151515;
   background: #e6e6e6;
   overflow: hidden;
+}
+
+/* Prevent body scroll when in compact/fullscreen board mode */
+.app.compact, html, body, #root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 0.6rem;
+  }
+
+  .board-stage {
+    padding: 0.4rem;
+    border-radius: 8px;
+  }
+
+  .board-grid {
+    border-width: 1px;
+  }
 }
 
 .path-cell,
@@ -665,6 +702,65 @@ select,
 .dice-wrap-board .dice-caption {
   display: none;
 }
+
+/* Compact fullscreen board mode - hides header and footer and makes board fill viewport */
+.app.compact {
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app.compact .topbar,
+.app.compact .turn-hud {
+  display: none;
+}
+
+.app.compact .layout {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.app.compact {
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app.compact .board-stage {
+  /* Prefer the smaller dimension between viewport width and the dynamic viewport height so grid fits on mobile chrome bars */
+  /* Use a named safe variable and a fallback to avoid recursion and unsupported unit issues */
+  --cell-safe: calc(min(100svw, 100svh) / 15);
+  --cell-fallback: calc(min(100vw, 100vh) / 15);
+  --cell: var(--cell-safe, var(--cell-fallback));
+  width: calc(var(--cell) * 15);
+  height: calc(var(--cell) * 15);
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  touch-action: manipulation;
+}
+
+.app.compact .board-grid {
+  border-width: 1px;
+}
+
+.app.compact .board-grid {
+  width: calc(var(--cell) * 15);
+  height: calc(var(--cell) * 15);
+}
+
+/* Floating controls removed — dice is rendered inside the board overlay in compact mode */
 
 .player-list {
   display: grid;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import './App.css'
 import Board from './components/Board'
 import Dice from './components/Dice'
@@ -21,32 +21,23 @@ function createSoundEngine() {
   let audioContext = null
 
   const getCtx = () => {
-    if (typeof window === 'undefined') {
-      return null
-    }
-
+    if (typeof window === 'undefined') return null
     if (!audioContext) {
       const AudioContextCtor = window.AudioContext || window.webkitAudioContext
-      if (!AudioContextCtor) {
-        return null
-      }
+      if (!AudioContextCtor) return null
       audioContext = new AudioContextCtor()
     }
-
     return audioContext
   }
 
   const pulse = (ctx, frequency, duration, startAt, type = 'sine', gain = 0.04) => {
     const osc = ctx.createOscillator()
     const amp = ctx.createGain()
-
     osc.type = type
     osc.frequency.setValueAtTime(frequency, startAt)
-
     amp.gain.setValueAtTime(0.0001, startAt)
     amp.gain.exponentialRampToValueAtTime(gain, startAt + 0.012)
     amp.gain.exponentialRampToValueAtTime(0.0001, startAt + duration)
-
     osc.connect(amp)
     amp.connect(ctx.destination)
     osc.start(startAt)
@@ -55,10 +46,7 @@ function createSoundEngine() {
 
   const playDiceClick = () => {
     const ctx = getCtx()
-    if (!ctx) {
-      return
-    }
-
+    if (!ctx) return
     const startAt = ctx.currentTime + 0.001
     pulse(ctx, 520, 0.07, startAt, 'triangle', 0.04)
     pulse(ctx, 690, 0.06, startAt + 0.012, 'triangle', 0.03)
@@ -66,10 +54,7 @@ function createSoundEngine() {
 
   const playTokenMove = () => {
     const ctx = getCtx()
-    if (!ctx) {
-      return
-    }
-
+    if (!ctx) return
     const startAt = ctx.currentTime + 0.001
     pulse(ctx, 230, 0.08, startAt, 'square', 0.038)
     pulse(ctx, 320, 0.09, startAt + 0.05, 'square', 0.032)
@@ -77,10 +62,7 @@ function createSoundEngine() {
 
   const playVictory = () => {
     const ctx = getCtx()
-    if (!ctx) {
-      return
-    }
-
+    if (!ctx) return
     const startAt = ctx.currentTime + 0.001
     const notes = [392, 494, 587, 784]
     notes.forEach((note, index) => {
@@ -90,15 +72,10 @@ function createSoundEngine() {
 
   const unlock = async () => {
     const ctx = getCtx()
-    if (!ctx || ctx.state !== 'suspended') {
-      return
-    }
-
+    if (!ctx || ctx.state !== 'suspended') return
     try {
       await ctx.resume()
-    } catch {
-      // Browser can block resume during non-user events; ignore safely.
-    }
+    } catch {}
   }
 
   return {
@@ -114,10 +91,7 @@ function gameReducer(state, action) {
     case 'SET_MODE':
       return createInitialState(action.mode, state.botLevel)
     case 'SET_BOT_LEVEL':
-      return {
-        ...state,
-        botLevel: action.level,
-      }
+      return { ...state, botLevel: action.level }
     case 'RESTART':
       return createInitialState(state.mode, state.botLevel)
     case 'ROLL_START':
@@ -132,49 +106,26 @@ function gameReducer(state, action) {
         status: `${state.players[getCurrentPlayer(state)].name} is rolling...`,
       }
     case 'ROLL_DONE': {
-      if (state.winner) {
-        return state
-      }
+      if (state.winner) return state
 
-      const didTripleSixCancel =
-        action.value === 6 && state.consecutiveSixes === 2
+      const didTripleSixCancel = action.value === 6 && state.consecutiveSixes === 2
       const processed = processDiceResult(state, action.value)
-
-      if (didTripleSixCancel) {
-        return processed
-      }
+      if (didTripleSixCancel) return processed
 
       if (processed.highlightedTokenIds.length === 0) {
-        if (action.value === 6) {
-          return finishNoMoveTurn(processed, action.value)
-        }
-
-        return {
-          ...processed,
-          pendingAutoPass: true,
-        }
+        if (action.value === 6) return finishNoMoveTurn(processed, action.value)
+        return { ...processed, pendingAutoPass: true }
       }
 
       return processed
     }
     case 'MOVE_TOKEN': {
-      if (state.winner || !state.diceValue) {
-        return state
-      }
-
+      if (state.winner || !state.diceValue) return state
       const movable = getMovableTokens(state, action.color, state.diceValue)
       const isLegal = movable.some((token) => token.id === action.tokenId)
-      if (!isLegal) {
-        return state
-      }
+      if (!isLegal) return state
 
-      const moved = moveTokenInState(
-        state,
-        action.color,
-        action.tokenId,
-        state.diceValue,
-      )
-
+      const moved = moveTokenInState(state, action.color, action.tokenId, state.diceValue)
       if (moved.winner) {
         return {
           ...moved,
@@ -189,102 +140,72 @@ function gameReducer(state, action) {
       return resolveTurnAfterMove(moved, state.diceValue, action.tokenId)
     }
     case 'PASS_TURN':
-      return advanceTurn({
-        ...state,
-        pendingAutoPass: false,
-      })
+      return advanceTurn({ ...state, pendingAutoPass: false })
     default:
       return state
   }
 }
 
 function App() {
-  const [state, dispatch] = useReducer(
-    gameReducer,
-    createInitialState(DEFAULT_MODE, BOT_LEVELS.MEDIUM),
-  )
+  const [state, dispatch] = useReducer(gameReducer, createInitialState(DEFAULT_MODE, BOT_LEVELS.MEDIUM))
+  const [compact, setCompact] = useState(true)
   const soundRef = useRef(createSoundEngine())
   const prevWinnerKeyRef = useRef(null)
 
   const currentColor = getCurrentPlayer(state)
   const currentPlayer = state.players[currentColor]
-  const modeOptions = useMemo(
-    () => [
-      { value: GAME_MODES.TWO_PLAYERS, label: '2 Players (1 vs 1)' },
-      { value: GAME_MODES.THREE_PLAYERS, label: '3 Players (Solo)' },
-      { value: GAME_MODES.FOUR_PLAYERS, label: '4 Players (Solo)' },
-      { value: GAME_MODES.TEAM, label: 'Team (2 vs 2)' },
-      { value: GAME_MODES.BOT, label: 'Player vs Bot' },
-    ],
-    [],
-  )
+  const modeOptions = useMemo(() => [
+    { value: GAME_MODES.TWO_PLAYERS, label: '2 Players (1 vs 1)' },
+    { value: GAME_MODES.THREE_PLAYERS, label: '3 Players (Solo)' },
+    { value: GAME_MODES.FOUR_PLAYERS, label: '4 Players (Solo)' },
+    { value: GAME_MODES.TEAM, label: 'Team (2 vs 2)' },
+    { value: GAME_MODES.BOT, label: 'Player vs Bot' },
+  ], [])
 
-  const canRoll =
-    !state.winner && !state.diceRolling && !state.mustMoveToken && !currentPlayer?.isBot
+  const canRoll = !state.winner && !state.diceRolling && !state.mustMoveToken && !currentPlayer?.isBot
 
   const handleRoll = () => {
-    if (!canRoll) {
-      return
-    }
-
+    if (!canRoll) return
+    if (!compact) setCompact(true)
     soundRef.current.unlock()
     soundRef.current.playDiceClick()
-
     dispatch({ type: 'ROLL_START' })
-
     window.setTimeout(() => {
       const value = Math.floor(Math.random() * 6) + 1
       dispatch({ type: 'ROLL_DONE', value })
     }, 700)
   }
 
+  const handleRestart = () => {
+    dispatch({ type: 'RESTART' })
+    setCompact(true)
+  }
+
   const handleTokenClick = (color, tokenId) => {
-    if (color !== currentColor || !state.mustMoveToken) {
-      return
-    }
-
+    if (color !== currentColor || !state.mustMoveToken) return
     soundRef.current.playTokenMove()
-
     dispatch({ type: 'MOVE_TOKEN', color, tokenId })
   }
 
   useEffect(() => {
-    if (!state.pendingAutoPass || state.winner) {
-      return undefined
-    }
-
-    const passTimer = window.setTimeout(() => {
-      dispatch({ type: 'PASS_TURN' })
-    }, 850)
-
+    if (!state.pendingAutoPass || state.winner) return undefined
+    const passTimer = window.setTimeout(() => dispatch({ type: 'PASS_TURN' }), 850)
     return () => window.clearTimeout(passTimer)
   }, [state.pendingAutoPass, state.winner])
 
   useEffect(() => {
-    if (state.winner || !currentPlayer?.isBot) {
-      return undefined
-    }
-
+    if (state.winner || !currentPlayer?.isBot) return undefined
     if (!state.diceRolling && state.diceValue === null && !state.mustMoveToken) {
       const rollTimer = window.setTimeout(() => {
         dispatch({ type: 'ROLL_START' })
-        window.setTimeout(() => {
-          dispatch({ type: 'ROLL_DONE', value: Math.floor(Math.random() * 6) + 1 })
-        }, 600)
+        window.setTimeout(() => dispatch({ type: 'ROLL_DONE', value: Math.floor(Math.random() * 6) + 1 }), 600)
       }, 700)
-
       return () => window.clearTimeout(rollTimer)
     }
 
     if (state.diceValue !== null && state.highlightedTokenIds.length > 0) {
       const moveTimer = window.setTimeout(() => {
-        const tokenId = chooseBotMove(
-          state,
-          currentColor,
-          state.diceValue,
-          state.botLevel,
-        )
-
+        const tokenId = chooseBotMove(state, currentColor, state.diceValue, state.botLevel)
         if (tokenId) {
           soundRef.current.playTokenMove()
           dispatch({ type: 'MOVE_TOKEN', color: currentColor, tokenId })
@@ -292,7 +213,6 @@ function App() {
           dispatch({ type: 'PASS_TURN' })
         }
       }, 850)
-
       return () => window.clearTimeout(moveTimer)
     }
 
@@ -302,63 +222,60 @@ function App() {
   useEffect(() => {
     const winnerKey = state.winner?.key ?? null
     const previousWinnerKey = prevWinnerKeyRef.current
-
-    if (winnerKey && winnerKey !== previousWinnerKey) {
-      soundRef.current.playVictory()
-    }
-
+    if (winnerKey && winnerKey !== previousWinnerKey) soundRef.current.playVictory()
     prevWinnerKeyRef.current = winnerKey
   }, [state.winner])
 
   const winnerLabel = state.winner ? state.winner.label : ''
   const diceDisplayValue = state.diceRolling ? '...' : state.diceValue ?? '-'
 
+  // Exit compact mode with Escape
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setCompact(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Auto-enter compact when gameplay starts
+  useEffect(() => {
+    if (!state || !state.players) return undefined
+    const anyTokenMoved = Object.values(state.players).some((p) => p.tokens.some((t) => t.steps !== -1))
+    if (anyTokenMoved || state.lastMove || state.diceValue !== null) setCompact(true)
+    return undefined
+  }, [state.players, state.lastMove, state.diceValue])
+
   return (
-    <main className="app">
-      <header className="topbar">
-        <div>
-          <h1>Ludo Arena</h1>
-          <p className="subtitle">Play local multiplayer, team mode, or challenge the bot.</p>
-        </div>
+    <main className={`app ${compact ? 'compact' : ''}`}>
+      {!compact && (
+        <header className="topbar">
+          <div>
+            <h1>Ludo Arena</h1>
+            <p className="subtitle">Play local multiplayer, team mode, or challenge the bot.</p>
+          </div>
 
-        <div className="topbar-controls">
-          <label>
-            Mode
-            <select
-              value={state.mode}
-              onChange={(event) =>
-                dispatch({ type: 'SET_MODE', mode: event.target.value })
-              }
-            >
-              {modeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {state.mode === GAME_MODES.BOT && (
+          <div className="topbar-controls">
             <label>
-              Bot Difficulty
-              <select
-                value={state.botLevel}
-                onChange={(event) =>
-                  dispatch({ type: 'SET_BOT_LEVEL', level: event.target.value })
-                }
-              >
-                <option value={BOT_LEVELS.EASY}>Easy</option>
-                <option value={BOT_LEVELS.MEDIUM}>Medium</option>
-                <option value={BOT_LEVELS.HARD}>Hard</option>
+              Mode
+              <select value={state.mode} onChange={(e) => dispatch({ type: 'SET_MODE', mode: e.target.value })}>
+                {modeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
-          )}
 
-          <button type="button" className="btn" onClick={() => dispatch({ type: 'RESTART' })}>
-            Restart
-          </button>
-        </div>
-      </header>
+            {state.mode === GAME_MODES.BOT && (
+              <label>
+                Bot Difficulty
+                <select value={state.botLevel} onChange={(e) => dispatch({ type: 'SET_BOT_LEVEL', level: e.target.value })}>
+                  <option value={BOT_LEVELS.EASY}>Easy</option>
+                  <option value={BOT_LEVELS.MEDIUM}>Medium</option>
+                  <option value={BOT_LEVELS.HARD}>Hard</option>
+                </select>
+              </label>
+            )}
+
+            <button type="button" className="btn" onClick={handleRestart}>Restart</button>
+          </div>
+        </header>
+      )}
 
       <section className="layout">
         <Board
@@ -370,31 +287,22 @@ function App() {
           canInteract={!currentPlayer?.isBot && state.mustMoveToken}
           diceColor={currentColor}
           diceSlot={(
-            <Dice
-              value={state.diceValue}
-              isRolling={state.diceRolling}
-              onRoll={handleRoll}
-              disabled={!canRoll}
-              variant="board"
-              tone={currentColor}
-            />
+            <Dice value={state.diceValue} isRolling={state.diceRolling} onRoll={handleRoll} disabled={!canRoll} variant="board" tone={currentColor} />
           )}
+          compact={compact}
         />
       </section>
 
-      <section className="turn-hud" aria-live="polite">
-        <div className="turn-hud-player">
-          <span className={`turn-dot turn-${currentColor}`} aria-hidden="true" />
-          <span>
-            Turn: <strong>{currentPlayer?.name}</strong>
-          </span>
-        </div>
-        <div className="turn-hud-status">{state.status}</div>
-        <div className="turn-hud-dice">
-          <span>Dice</span>
-          <strong>{diceDisplayValue}</strong>
-        </div>
-      </section>
+      {!compact && (
+        <section className="turn-hud" aria-live="polite">
+          <div className="turn-hud-player">
+            <span className={`turn-dot turn-${currentColor}`} aria-hidden="true" />
+            <span>Turn: <strong>{currentPlayer?.name}</strong></span>
+          </div>
+          <div className="turn-hud-status">{state.status}</div>
+          <div className="turn-hud-dice"><span>Dice</span><strong>{diceDisplayValue}</strong></div>
+        </section>
+      )}
 
       {state.winner && (
         <section className="winner-overlay" role="status" aria-live="polite">
@@ -402,14 +310,10 @@ function App() {
             <p className="winner-title">Winner</p>
             <h2>{winnerLabel}</h2>
             <p className="winner-subtitle">Congratulations! Match finished.</p>
-            <button type="button" className="btn" onClick={() => dispatch({ type: 'RESTART' })}>
-              Play Again
-            </button>
+            <button type="button" className="btn" onClick={handleRestart}>Play Again</button>
           </div>
           <div className="winner-sparkle-field" aria-hidden="true">
-            {Array.from({ length: 18 }, (_, index) => (
-              <span key={`spark-${index}`} className="winner-sparkle" />
-            ))}
+            {Array.from({ length: 18 }, (_, i) => <span key={i} className="winner-sparkle" />)}
           </div>
         </section>
       )}
