@@ -172,7 +172,10 @@ select,
 
 .board-stage {
   /* cell scales to fit both width and height without causing page scroll */
-  --cell: min(clamp(16px, calc((100vw - 1.1rem) / 15), 40px), calc((100vh - 2.2rem) / 15));
+  --cell: min(
+    clamp(16px, calc((100vw - 1.1rem) / 15), 40px),
+    calc((100vh - 2.2rem) / 15)
+  );
   position: relative;
   flex: 0 0 auto;
   width: calc(var(--cell) * 15);
@@ -201,8 +204,8 @@ select,
 }
 
 .board-dice-slot .dice-wrap-board {
-  width: max(calc(var(--cell) * 1.0), 40px);
-  height: max(calc(var(--cell) * 1.0), 40px);
+  width: max(calc(var(--cell) * 1), 40px);
+  height: max(calc(var(--cell) * 1), 40px);
   display: grid;
   place-items: center;
 }
@@ -234,7 +237,10 @@ select,
 }
 
 /* Prevent body scroll when in compact/fullscreen board mode */
-.app.compact, html, body, #root {
+.app.compact,
+html,
+body,
+#root {
   height: 100vh;
   overflow: hidden;
 }
